@@ -3,6 +3,12 @@
 from subprocess import check_output
 from os import linesep
 from datetime import datetime, date, time
+from argparse import ArgumentParser
+# Get command line args
+par = ArgumentParser()
+par.add_argument("-c", "--create", dest="create", action="store_true", help="Automatically create snapshots")
+par.add_argument("-s", "--silent", dest="silent", action="store_true", help="Do not print anything")
+args = par.parse_args()
 # Declare some vars
 timeStamp = datetime.now()  # Record timestamp used for snapshotting
 zpoolName = "tank"          # Main zpool name
@@ -37,17 +43,20 @@ if newest > 0:
     print("\n\033[34mSnapshot required, newest snapshot is",newest,"days old\033[37m")
 else:
     print("\n\033[32mNo snapshot required\033[37m")
-result = input("\nCreate snapshots? ")
+if args.create:
+	result = "y"
+else:
+	result = input("\nCreate snapshots? ")
 if result == "y":
-    print("\033[34m   Snapshotting")
+    print("\033[34mSnapshotting")
     for names in sets:
         newname = "tank/" + names + "@" + timeStamp.strftime('%Y-%m-%d_%H%M%S')
-        print("      ", newname)
+        print("   ", newname)
         check_output(["zfs", "snapshot", newname])
 # If there are any snapshots in the queue to destroy
 if len(setToDestroy) > 0:
     print("\n\033[33mSnapshots to be destroyed:")
     for name in setToDestroy:
-        print("  ", name, "...")
+        print("   ", name, "...")
         check_output(["zfs", "destroy", name])
 print("\033[0m") # Set terminal back to normal
