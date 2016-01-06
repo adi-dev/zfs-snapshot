@@ -6,10 +6,12 @@ from datetime import datetime, date, time
 from argparse import ArgumentParser
 # Get command line args
 par = ArgumentParser()
+par.add_argument("pool", help="Name of the pool to run on")
 par.add_argument("-c", "--create", dest="create", action="store_true", help="Automatically create snapshots")
 par.add_argument("-a", "--auto", dest="auto", action="store_true", help="Automatically create snapshots only when needed")
 par.add_argument("-s", "--silent", dest="silent", action="store_true", help="Do not print anything")
-par.add_argument("list", type=str, nargs='+', help="List of zfs volumes to snapshot")
+par.add_argument("--maxage", dest="maxage", default=7, help="Maximum snapshot age in days, destroy older than this")
+par.add_argument("list", type=str, nargs='+', help="List of zfs datasets to snapshot")
 args = par.parse_args()
 
 
@@ -23,12 +25,9 @@ def vprint(*text):
 
 # Declare some vars
 timeStamp = datetime.now()  # Record timestamp used for snapshotting
-zpoolName = "tank"          # Main zpool name
+zpoolName = args.pool       # Main zpool name
 newest = 99                 # Used to estimate the age of last snapshot
-maxAge = 7                  # Maximum age of snapshot
-if not args.list:
-    vprint("\nError:\n\tList of zfs snapshot not given")
-    exit()
+maxAge = args.maxage        # Maximum age of snapshot
 sets = dict.fromkeys(args.list, 0)
 
 # Get list of current snapshots
@@ -39,8 +38,12 @@ vprint("Current ZFS snapshots:")
 # Create count of snapshots
 for name in zfsList:
     if len(name) > 18:      # there may be a flaw as it may be a snapshot of fs not in 'sets'
-        sets[name.strip(zpoolName)[1:][:-18]] += 1
-        vprint("   ", sets[name.strip(zpoolName)[1:][:-18]], ":   ", name)
+        if name.strip(zpoolName)[1:][:-18] in sets:
+            sets[name.strip(zpoolName)[1:][:-18]] += 1
+            vprint("   ", sets[name.strip(zpoolName)[1:][:-18]], ":   ", name)
+        else:
+            print("Error, dataset: ", name, " doesn't match", zpoolName)
+            exit(1)
     else:
         zfsList.remove(name)
 # Check snapshots time and if too old add to queue leaving at least one
@@ -49,10 +52,11 @@ for zfsFileSystems in zfsList:
     snapshotTime = datetime.strptime(zfsFileSystems[-17:], '%Y-%m-%d_%H%M%S')
     name = zfsFileSystems.strip(zpoolName)[1:][:-18]
     timeLeap = int((timeStamp - snapshotTime).days)
-    if sets[name] > 1:
-        if timeLeap > maxAge:
-            sets[name] -= 1
-            setToDestroy.append(zfsFileSystems)
+    if name in sets:
+        if sets[name] > 1:
+            if timeLeap > maxAge:
+                sets[name] -= 1
+                setToDestroy.append(zfsFileSystems)
     newest = min(newest, timeLeap)
 # If last snapshot date is older than one day make a new snapshots
 if newest > 0:
