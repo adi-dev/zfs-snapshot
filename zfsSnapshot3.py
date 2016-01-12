@@ -4,6 +4,7 @@ from subprocess import check_output
 from os import linesep
 from datetime import datetime, date, time
 from argparse import ArgumentParser
+import fcntl, sys
 # Get command line args
 par = ArgumentParser()
 par.add_argument("pool", help="Name of the pool to run on")
@@ -13,6 +14,17 @@ par.add_argument("-s", "--silent", dest="silent", action="store_true", help="Do 
 par.add_argument("--maxage", dest="maxage", default=7, help="Maximum snapshot age in days, destroy older than this")
 par.add_argument("list", type=str, nargs='+', help="List of zfs datasets to snapshot")
 args = par.parse_args()
+file_handle = None
+lockfile_path = '/var/lock/zfssnapshot3.py'
+
+def filelock(file_path):
+    global file_handle
+    file_handle = open(file_path, 'w')
+    try:
+        fcntl.lockf(file_handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return False
+    except IOError:
+        return True
 
 
 def vprint(*text):
@@ -30,6 +42,10 @@ newest = 99                 # Used to estimate the age of last snapshot
 maxAge = args.maxage        # Maximum age of snapshot
 sets = dict.fromkeys(args.list, 0)
 
+if filelock(lockfile_path):
+    print("Another instance is already running")
+    sys.exit(-1)
+
 # Get list of current snapshots
 zfsList = check_output(["zfs", "list", "-o", "name", "-t", "snapshot", "-H"]).decode().split(linesep)
 # Clear screen and set cursors in 0,0
@@ -43,7 +59,7 @@ for name in zfsList:
             vprint("   ", sets[name.strip(zpoolName)[1:][:-18]], ":   ", name)
         else:
             print("Error, dataset: ", name, " doesn't match", zpoolName)
-            exit(1)
+            sys.exit(1)
     else:
         zfsList.remove(name)
 # Check snapshots time and if too old add to queue leaving at least one
