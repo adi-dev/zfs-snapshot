@@ -47,7 +47,7 @@ if filelock(lockfile_path):
     sys.exit(-1)
 
 # Get list of current snapshots
-zfsList = check_output(["zfs", "list", "-o", "name", "-t", "snapshot", "-H"]).decode().split(linesep)
+zfsList = check_output(["/sbin/zfs", "list", "-o", "name", "-t", "snapshot", "-H"]).decode().split(linesep)
 # Clear screen and set cursors in 0,0
 vprint("\033[2J\033[1;1H")
 vprint("Current ZFS snapshots:")
@@ -91,11 +91,11 @@ if result == "y":
     for names in sets:
         newname = "tank/" + names + "@" + timeStamp.strftime('%Y-%m-%d_%H%M%S')
         vprint("   ", newname)
-        check_output(["zfs", "snapshot", newname])
+        check_output(["/sbin/zfs", "snapshot", newname])
 # If there are any snapshots in the queue to destroy
 if len(setToDestroy) > 0:
     vprint("\n\033[33mSnapshots to be destroyed:")
     for name in setToDestroy:
         vprint("   ", name, "...")
-        check_output(["zfs", "destroy", name])
+        check_output(["/sbin/zfs", "destroy", name])
 vprint("\033[0m")    # Set terminal back to normal
